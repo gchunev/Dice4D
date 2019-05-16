@@ -1,0 +1,851 @@
+Index: Arbiter.cpp
+===================================================================
+--- Arbiter.cpp	(revision 3114)
++++ Arbiter.cpp	(working copy)
+@@ -124,38 +124,38 @@
+ }
+ 
+ 
+-void Arbiter::PreStep(float inv_dt)
++void Arbiter::PreStep(double inv_dt)
+ {
+-	const float k_allowedPenetration = 0.01f;
+-	float k_biasFactor = World::positionCorrection ? 0.2f : 0.0f;
++	const double k_allowedPenetration = 0.01;
++	double k_biasFactor = World::positionCorrection ? 0.2 : 0.0;
+ 
+ 	for (int i = 0; i < numContacts; ++i)
+ 	{
+ 		Contact* c = contacts + i;
+ 
+-		glm::vec4 r1 = c->position - body1->position;
+-		glm::vec4 r2 = c->position - body2->position;
++		glm::dvec4 r1 = c->position - body1->position;
++		glm::dvec4 r2 = c->position - body2->position;
+ 
+ 		// Precompute normal mass, tangent mass, and bias.
+-		float rn1 = glm::dot(r1, c->normal);
+-		float rn2 = glm::dot(r2, c->normal);
+-		float kNormal = body1->invMass + body2->invMass;
++		double rn1 = glm::dot(r1, c->normal);
++		double rn2 = glm::dot(r2, c->normal);
++		double kNormal = body1->invMass + body2->invMass;
+ 		kNormal += body1->invI * (glm::dot(r1, r1) - rn1 * rn1) + body2->invI * (glm::dot(r2, r2) - rn2 * rn2);
+ 		c->massNormal = 1.0f / kNormal;
+ 
+-		glm::vec4 rt1 = r1 - rn1 * c->normal;
+-		glm::vec4 rt2 = r2 - rn2 * c->normal;
++		glm::dvec4 rt1 = r1 - rn1 * c->normal;
++		glm::dvec4 rt2 = r2 - rn2 * c->normal;
+ 
+-		float kTangent = body1->invMass + body2->invMass;
++		double kTangent = body1->invMass + body2->invMass;
+ 		kTangent += body1->invI * (glm::dot(r1, r1) - glm::dot(rt1, rt1)) + body2->invI * (glm::dot(r2, r2) - glm::dot(rt2, rt2));
+ 		c->massTangent = 1.0f /  kTangent;
+ 
+-		c->bias = -k_biasFactor * inv_dt * glm::min(0.0f, c->separation + k_allowedPenetration);
++		c->bias = -k_biasFactor * inv_dt * glm::min(0.0, c->separation + k_allowedPenetration);
+ 
+ 		if (World::accumulateImpulses)
+ 		{
+ 			// Apply normal + friction impulse
+-			glm::vec4 P = c->Pn * c->normal + c->Pt;
++			glm::dvec4 P = c->Pn * c->normal + c->Pt;
+ 
+ 			body1->UpdateLinearVelocity(- body1->invMass * P);
+ 			body1->UpdateAngularVelocity(glm::tensor_cross(r1, -body1->invI * P));
+@@ -178,27 +178,27 @@
+ 		c->r2 = c->position - b2->position;
+ 
+ 		// Relative velocity at contact
+-		glm::vec4 dv = b2->GetInstantaneousLinearVelocityAtPoint(c->r2) - b1->GetInstantaneousLinearVelocityAtPoint(c->r1);
++		glm::dvec4 dv = b2->GetInstantaneousLinearVelocityAtPoint(c->r2) - b1->GetInstantaneousLinearVelocityAtPoint(c->r1);
+ 
+ 		// Compute normal impulse
+-		float vn = glm::dot(dv, c->normal);
++		double vn = glm::dot(dv, c->normal);
+ 
+-		float dPn = c->massNormal * (-vn + c->bias);
++		double dPn = c->massNormal * (-vn + c->bias);
+ 
+ 		if (World::accumulateImpulses)
+ 		{
+ 			// Clamp the accumulated impulse
+-			float Pn0 = c->Pn;
+-			c->Pn = glm::max(Pn0 + dPn, 0.0f);
++			double Pn0 = c->Pn;
++			c->Pn = glm::max(Pn0 + dPn, 0.0);
+ 			dPn = c->Pn - Pn0;
+ 		}
+ 		else
+ 		{
+-			dPn = glm::max(dPn, 0.0f);
++			dPn = glm::max(dPn, 0.0);
+ 		}
+ 
+ 		// Apply contact impulse
+-		glm::vec4 Pn = dPn * c->normal;
++		glm::dvec4 Pn = dPn * c->normal;
+ 
+ 		b1->UpdateLinearVelocity(- b1->invMass * Pn);
+ 		b1->UpdateAngularVelocity(glm::tensor_cross(c->r1, -b1->invI * Pn));
+@@ -209,27 +209,27 @@
+ 		// Relative velocity at contact
+ 		dv = b2->GetInstantaneousLinearVelocityAtPoint(c->r2) - b1->GetInstantaneousLinearVelocityAtPoint(c->r1);
+ 		vn = glm::dot(dv, c->normal);
+-		glm::vec4 vt = dv - vn * c->normal;
+-		glm::vec4 dPt = c->massTangent * (-vt);
++		glm::dvec4 vt = dv - vn * c->normal;
++		glm::dvec4 dPt = c->massTangent * (-vt);
+ 
+ 		if (World::accumulateImpulses)
+ 		{
+ 			// Compute friction impulse
+-			float maxPt = friction * c->Pn;
++			double maxPt = friction * c->Pn;
+ 
+ 			// Clamp friction
+-			glm::vec4 oldTangentImpulse = c->Pt;
++			glm::dvec4 oldTangentImpulse = c->Pt;
+ 			c->Pt = glm::clamp(oldTangentImpulse + dPt, -maxPt, maxPt);
+ 			dPt = c->Pt - oldTangentImpulse;
+ 		}
+ 		else
+ 		{
+-			float maxPt = friction * dPn;
++			double maxPt = friction * dPn;
+ 			dPt = glm::clamp(dPt, -maxPt, maxPt);
+ 		}
+ 
+ 		// Apply contact impulse
+-		glm::vec4 Pt = dPt;
++		glm::dvec4 Pt = dPt;
+ 
+ 		b1->UpdateLinearVelocity(- b1->invMass * Pt);
+ 		b1->UpdateAngularVelocity(glm::tensor_cross(c->r1, -b1->invI * Pt));
+Index: Arbiter.h
+===================================================================
+--- Arbiter.h	(revision 3114)
++++ Arbiter.h	(working copy)
+@@ -35,15 +35,15 @@
+ {
+ 	Contact() : Pn(0.0f), Pt(0.0f), Pnb(0.0f) {}
+ 
+-	glm::vec4 position;
+-	glm::vec4 normal;
+-	glm::vec4 r1, r2;
+-	float separation;
+-	float Pn;	// accumulated normal impulse
+-	glm::vec4 Pt;	// accumulated tangent impulse
+-	float Pnb;	// accumulated normal impulse for position bias
+-	float massNormal, massTangent;
+-	float bias;
++	glm::dvec4 position;
++	glm::dvec4 normal;
++	glm::dvec4 r1, r2;
++	double separation;
++	double Pn;	// accumulated normal impulse
++	glm::dvec4 Pt;	// accumulated tangent impulse
++	double Pnb;	// accumulated normal impulse for position bias
++	double massNormal, massTangent;
++	double bias;
+ 	FeaturePair feature;
+ };
+ 
+@@ -65,7 +65,7 @@
+ 
+ 	void Update(Contact* contacts, int numContacts);
+ 
+-	void PreStep(float inv_dt);
++	void PreStep(double inv_dt);
+ 	void ApplyImpulse();
+ 
+ 	void DebugDrawContacts();
+@@ -77,7 +77,7 @@
+ 	ISolid* body2;
+ 
+ 	// Combined friction
+-	float friction;
++	double friction;
+ };
+ 
+ // This is used by std::set
+Index: Body.cpp
+===================================================================
+--- Body.cpp	(revision 3116)
++++ Body.cpp	(working copy)
+@@ -15,19 +15,19 @@
+ {
+ 	dimensions = 2;
+ 
+-	position = glm::vec4(0.0f);
+-	rotation = glm::mat4(1.0f);
+-	velocity = glm::vec4(0.0f);
+-	angularVelocity = glm::mat4(0.0f);
+-	force = glm::vec4(0.0f);
+-	torque = glm::mat4(0.0f);
+-	friction = 0.2f;
++	position = glm::dvec4(0.0);
++	rotation = glm::dmat4(1.0);
++	velocity = glm::dvec4(0.0);
++	angularVelocity = glm::dmat4(0.0);
++	force = glm::dvec4(0.0);
++	torque = glm::dmat4(0.0);
++	friction = 0.2;
+ 
+-	width = 1.0f;
+-	mass = FLT_MAX;
+-	invMass = 0.0f;
+-	I = FLT_MAX;
+-	invI = 0.0f;
++	width = 1.0;
++	mass = DBL_MAX;
++	invMass = 0.0;
++	I = DBL_MAX;
++	invI = 0.0;
+ 
+ 	UpdateGeometry();
+ }
+@@ -48,7 +48,7 @@
+ 
+ 		for (int i = 0; i < numCurrentVertices; i++)
+ 		{
+-			bodyVertices[i][d] = 0.5f * width;
++			bodyVertices[i][d] = 0.5f * (float)width;
+ 		}
+ 
+ 		for (int i = 0; i < numCurrentVertices; i++)
+@@ -107,31 +107,31 @@
+ 	}
+ }
+ 
+-void Body::UpdateLinearVelocity(glm::vec4& addedVelocity)
++void Body::UpdateLinearVelocity(glm::dvec4& addedVelocity)
+ {
+ 	velocity += addedVelocity;
+ }
+ 
+-void Body::UpdateAngularVelocity(glm::mat4& addedAngularVelocity)
++void Body::UpdateAngularVelocity(glm::dmat4& addedAngularVelocity)
+ {
+ 	angularVelocity += addedAngularVelocity;
+ }
+ 
+-glm::vec4 Body::GetInstantaneousLinearVelocityAtPoint(glm::vec4& point)
++glm::dvec4 Body::GetInstantaneousLinearVelocityAtPoint(glm::dvec4& point)
+ {
+-	glm::vec4 retVal = velocity + angularVelocity * point;
++	glm::dvec4 retVal = velocity + angularVelocity * point;
+ 	return retVal;
+ }
+ 
+ void Body::Set(int dim, float w, float m)
+ {
+-	position = glm::vec4(0.0f);
+-	rotation = glm::mat4(1.0f);
+-	velocity = glm::vec4(0.0f);
+-	angularVelocity = glm::mat4(0.0f);
+-	force = glm::vec4(0.0f);
+-	torque = glm::mat4(0.0f);
+-	friction = 0.2f;
++	position = glm::dvec4(0.0);
++	rotation = glm::dmat4(1.0);
++	velocity = glm::dvec4(0.0);
++	angularVelocity = glm::dmat4(0.0);
++	force = glm::dvec4(0.0);
++	torque = glm::dmat4(0.0);
++	friction = 0.2;
+ 
+ 	width = w;
+ 	dimensions = dim;
+@@ -138,17 +138,17 @@
+ 	UpdateGeometry();
+ 
+ 	mass = m;
+-	if (mass < FLT_MAX)
++	if (mass < DBL_MAX)
+ 	{
+-		invMass = 1.0f / mass;
+-		I = mass * (width * width) / 6.0f;
+-		invI = 1.0f / I;
++		invMass = 1.0 / mass;
++		I = mass * (width * width) / 6.0;
++		invI = 1.0 / I;
+ 	}
+ 	else
+ 	{
+-		invMass = 0.0f;
+-		I = FLT_MAX;
+-		invI = 0.0f;
++		invMass = 0.0;
++		I = DBL_MAX;
++		invI = 0.0;
+ 	}
+ }
+ 
+@@ -156,11 +156,11 @@
+ {
+ 	ISolid::Impress(chunk);
+ 
+-	chunk.SetMat4("rotation", rotation);
+-	chunk.SetVec4("velocity", velocity);
+-	chunk.SetMat4("angularVelocity", angularVelocity);
+-	chunk.SetVec4("force", force);
+-	chunk.SetMat4("torque", torque);
++	chunk.SetDMat4("rotation", rotation);
++	chunk.SetDVec4("velocity", velocity);
++	chunk.SetDMat4("angularVelocity", angularVelocity);
++	chunk.SetDVec4("force", force);
++	chunk.SetDMat4("torque", torque);
+ }
+ 
+ void Body::Evoke(const MemoryChunk& chunk)
+@@ -167,9 +167,9 @@
+ {
+ 	ISolid::Evoke(chunk);
+ 
+-	rotation = chunk.GetMat4("rotation");
+-	velocity = chunk.GetVec4("velocity");
+-	angularVelocity = chunk.GetMat4("angularVelocity");
+-	force = chunk.GetVec4("force");
+-	torque = chunk.GetMat4("torque");
++	rotation = chunk.GetDMat4("rotation");
++	velocity = chunk.GetDVec4("velocity");
++	angularVelocity = chunk.GetDMat4("angularVelocity");
++	force = chunk.GetDVec4("force");
++	torque = chunk.GetDMat4("torque");
+ }
+Index: Body.h
+===================================================================
+--- Body.h	(revision 3114)
++++ Body.h	(working copy)
+@@ -20,10 +20,10 @@
+ {
+ 	Body();
+ 
+-	virtual void UpdateLinearVelocity(glm::vec4& addedVelocity);
+-	virtual void UpdateAngularVelocity(glm::mat4& addedAngularVelocity);
++	virtual void UpdateLinearVelocity(glm::dvec4& addedVelocity);
++	virtual void UpdateAngularVelocity(glm::dmat4& addedAngularVelocity);
+ 
+-	virtual glm::vec4 GetInstantaneousLinearVelocityAtPoint(glm::vec4& point);
++	virtual glm::dvec4 GetInstantaneousLinearVelocityAtPoint(glm::dvec4& point);
+ 
+ 	void Set(int dim, float w, float m);
+ 
+@@ -39,15 +39,15 @@
+ 
+ 	int dimensions;
+ 
+-	glm::mat4 rotation;
++	glm::dmat4 rotation;
+ 
+-	glm::vec4 velocity;
+-	glm::mat4 angularVelocity;
++	glm::dvec4 velocity;
++	glm::dmat4 angularVelocity;
+ 
+-	glm::vec4 force;
+-	glm::mat4 torque;
++	glm::dvec4 force;
++	glm::dmat4 torque;
+ 
+-	float width;
++	double width;
+ 
+ 	std::vector<glm::vec4> bodyVertices;
+ 	std::vector< std::pair<glm::u8, glm::u8> > bodyEdges;
+Index: Collide.cpp
+===================================================================
+--- Collide.cpp	(revision 3114)
++++ Collide.cpp	(working copy)
+@@ -51,7 +51,7 @@
+ struct ClipVertex
+ {
+ 	ClipVertex() { fp.value = 0; }
+-	glm::vec4 v;
++	glm::dvec4 v;
+ 	FeaturePair fp;
+ };
+ 
+@@ -62,26 +62,26 @@
+ }
+ 
+ int ClipSegmentToLine(ClipVertex vOut[2], ClipVertex vIn[2],
+-					  const glm::vec2& normal, float offset, char clipEdge)
++					  const glm::dvec2& normal, double offset, char clipEdge)
+ {
+ 	// Start with no output points
+ 	int numOut = 0;
+ 
+ 	// Calculate the distance of end points to the line
+-	float distance0 = glm::dot(glm::vec4(normal, 0.0f, 0.0f), vIn[0].v) - offset;
+-	float distance1 = glm::dot(glm::vec4(normal, 0.0f, 0.0f), vIn[1].v) - offset;
++	double distance0 = glm::dot(glm::dvec4(normal, 0.0, 0.0), vIn[0].v) - offset;
++	double distance1 = glm::dot(glm::dvec4(normal, 0.0, 0.0), vIn[1].v) - offset;
+ 
+ 	// If the points are behind the plane
+-	if (distance0 <= 0.0f) vOut[numOut++] = vIn[0];
+-	if (distance1 <= 0.0f) vOut[numOut++] = vIn[1];
++	if (distance0 <= 0.0) vOut[numOut++] = vIn[0];
++	if (distance1 <= 0.0) vOut[numOut++] = vIn[1];
+ 
+ 	// If the points are on different sides of the plane
+-	if (distance0 * distance1 < 0.0f)
++	if (distance0 * distance1 < 0.0)
+ 	{
+ 		// Find intersection point of edge and plane
+-		float interp = distance0 / (distance0 - distance1);
++		double interp = distance0 / (distance0 - distance1);
+ 		vOut[numOut].v = vIn[0].v + interp * (vIn[1].v - vIn[0].v);
+-		if (distance0 > 0.0f)
++		if (distance0 > 0.0)
+ 		{
+ 			vOut[numOut].fp = vIn[0].fp;
+ 			vOut[numOut].fp.e.inEdge1 = clipEdge;
+@@ -100,14 +100,14 @@
+ }
+ 
+ int IntersectSegmentWithHalfSpace(ClipVertex vOut[2], ClipVertex vIn[2],
+-	const glm::vec4& normal, float offset, char clipEdge)
++	const glm::dvec4& normal, double offset, char clipEdge)
+ {
+ 	// Start with no output points
+ 	int numOut = 0;
+ 
+ 	// Calculate the distance of end points to the line
+-	float distance0 = glm::dot(normal, vIn[0].v) - offset;
+-	float distance1 = glm::dot(normal, vIn[1].v) - offset;
++	double distance0 = glm::dot(normal, vIn[0].v) - offset;
++	double distance1 = glm::dot(normal, vIn[1].v) - offset;
+ 
+ 	// If the points are on different sides of the plane
+ 	if (distance0 * distance1 < 0.0f)
+@@ -117,7 +117,7 @@
+ 		if (distance1 <= 0.0f) vOut[numOut++] = vIn[1];
+ 
+ 		// Find intersection point of edge and plane
+-		float interp = distance0 / (distance0 - distance1);
++		double interp = distance0 / (distance0 - distance1);
+ 		vOut[numOut].v = vIn[0].v + interp * (vIn[1].v - vIn[0].v);
+ 		if (distance0 > 0.0f)
+ 		{
+@@ -207,43 +207,43 @@
+ int Collide(Contact* contacts, Body* bodyA, Body* bodyB)
+ {
+ 	// Setup
+-	glm::vec2 hA = glm::vec2(0.5f * bodyA->width);
+-	glm::vec2 hB = glm::vec2(0.5f * bodyB->width);
++	glm::dvec2 hA = glm::dvec2(0.5 * bodyA->width);
++	glm::dvec2 hB = glm::dvec2(0.5 * bodyB->width);
+ 
+-	glm::vec2 posA = bodyA->position;
+-	glm::vec2 posB = bodyB->position;
++	glm::dvec2 posA = bodyA->position;
++	glm::dvec2 posB = bodyB->position;
+ 
+-	glm::mat2x2 RotA = glm::mat2(bodyA->rotation);
+-	glm::mat2x2 RotB = glm::mat2(bodyB->rotation);
++	glm::dmat2x2 RotA = glm::dmat2(bodyA->rotation);
++	glm::dmat2x2 RotB = glm::dmat2(bodyB->rotation);
+ 
+-	glm::mat2 RotAT = glm::transpose(RotA);
+-	glm::mat2 RotBT = glm::transpose(RotB);
++	glm::dmat2 RotAT = glm::transpose(RotA);
++	glm::dmat2 RotBT = glm::transpose(RotB);
+ 
+-	glm::vec2 a1 = RotA[0], a2 = RotA[1];
+-	glm::vec2 b1 = RotB[0], b2 = RotB[1];
++	glm::dvec2 a1 = RotA[0], a2 = RotA[1];
++	glm::dvec2 b1 = RotB[0], b2 = RotB[1];
+ 
+-	glm::vec2 dp = posB - posA;
+-	glm::vec2 dA = RotAT * dp;
+-	glm::vec2 dB = RotBT * dp;
++	glm::dvec2 dp = posB - posA;
++	glm::dvec2 dA = RotAT * dp;
++	glm::dvec2 dB = RotBT * dp;
+ 
+-	glm::mat2 C = RotAT * RotB;
+-	glm::mat2 absC = glm::mat2(glm::abs(C[0]), glm::abs(C[1]));
+-	glm::mat2 absCT = glm::transpose(absC);
++	glm::dmat2 C = RotAT * RotB;
++	glm::dmat2 absC = glm::dmat2(glm::abs(C[0]), glm::abs(C[1]));
++	glm::dmat2 absCT = glm::transpose(absC);
+ 
+ 	// Box A faces
+-	glm::vec2 faceA = glm::abs(dA) - hA - absC * hB;
++	glm::dvec2 faceA = glm::abs(dA) - hA - absC * hB;
+ 	if (faceA.x > 0.0f || faceA.y > 0.0f)
+ 		return 0;
+ 
+ 	// Box B faces
+-	glm::vec2 faceB = glm::abs(dB) - absCT * hA - hB;
++	glm::dvec2 faceB = glm::abs(dB) - absCT * hA - hB;
+ 	if (faceB.x > 0.0f || faceB.y > 0.0f)
+ 		return 0;
+ 
+ 	// Find best axis
+ 	Axis axis;
+-	float separation;
+-	glm::vec2 normal;
++	double separation;
++	glm::dvec2 normal;
+ 
+ 	// Box A faces
+ 	axis = FACE_A_X;
+@@ -250,8 +250,8 @@
+ 	separation = faceA.x;
+ 	normal = dA.x > 0.0f ? RotA[0] : -RotA[0];
+ 
+-	const float relativeTol = 0.95f;
+-	const float absoluteTol = 0.01f;
++	const double relativeTol = 0.95f;
++	const double absoluteTol = 0.01f;
+ 
+ 	if (faceA.y > relativeTol * separation + absoluteTol * hA.y)
+ 	{
+@@ -276,9 +276,9 @@
+ 	}
+ 
+ 	// Setup clipping plane data based on the separating axis
+-	glm::vec2 frontNormal, sideNormal;
++	glm::dvec2 frontNormal, sideNormal;
+ 	ClipVertex incidentEdge[2];
+-	float front, negSide, posSide;
++	double front, negSide, posSide;
+ 	char negEdge, posEdge;
+ 
+ 	// Compute the clipping lines and the line segment to be clipped.
+@@ -289,7 +289,7 @@
+ 			frontNormal = normal;
+ 			front = glm::dot(posA, frontNormal) + hA.x;
+ 			sideNormal = RotA[1];
+-			float side = glm::dot(posA, sideNormal);
++			double side = glm::dot(posA, sideNormal);
+ 			negSide = -side + hA.y;
+ 			posSide =  side + hA.y;
+ 			negEdge = EDGE3;
+@@ -303,7 +303,7 @@
+ 			frontNormal = normal;
+ 			front = glm::dot(posA, frontNormal) + hA.y;
+ 			sideNormal = RotA[0];
+-			float side = glm::dot(posA, sideNormal);
++			double side = glm::dot(posA, sideNormal);
+ 			negSide = -side + hA.x;
+ 			posSide =  side + hA.x;
+ 			negEdge = EDGE2;
+@@ -317,7 +317,7 @@
+ 			frontNormal = -normal;
+ 			front = glm::dot(posB, frontNormal) + hB.x;
+ 			sideNormal = RotB[1];
+-			float side = glm::dot(posB, sideNormal);
++			double side = glm::dot(posB, sideNormal);
+ 			negSide = -side + hB.y;
+ 			posSide =  side + hB.y;
+ 			negEdge = EDGE3;
+@@ -331,7 +331,7 @@
+ 			frontNormal = -normal;
+ 			front = glm::dot(posB, frontNormal) + hB.y;
+ 			sideNormal = RotB[0];
+-			float side = glm::dot(posB, sideNormal);
++			double side = glm::dot(posB, sideNormal);
+ 			negSide = -side + hB.x;
+ 			posSide =  side + hB.x;
+ 			negEdge = EDGE2;
+@@ -365,14 +365,14 @@
+ 	int numContacts = 0;
+ 	for (int i = 0; i < 2; ++i)
+ 	{
+-		float separation = glm::dot(frontNormal, glm::vec2(clipPoints2[i].v)) - front;
++		double separation = glm::dot(frontNormal, glm::dvec2(clipPoints2[i].v)) - front;
+ 
+ 		if (separation <= 0)
+ 		{
+ 			contacts[numContacts].separation = separation;
+-			contacts[numContacts].normal = glm::vec4(normal, 0.0f, 0.0f);
++			contacts[numContacts].normal = glm::dvec4(normal, 0.0, 0.0);
+ 			// slide contact point onto reference face (easy to cull)
+-			contacts[numContacts].position = clipPoints2[i].v - glm::vec4(separation * frontNormal, 0.0f, 0.0f);
++			contacts[numContacts].position = clipPoints2[i].v - glm::dvec4(separation * frontNormal, 0.0, 0.0);
+ 			contacts[numContacts].feature = clipPoints2[i].fp;
+ 			if (axis == FACE_B_X || axis == FACE_B_Y)
+ 				Flip(contacts[numContacts].feature);
+@@ -398,7 +398,7 @@
+ 		auto vertex = RotB * body->bodyVertices[i] + posB - posA;
+ 		float separation = glm::dot(vertex, normal);
+ 
+-		if (separation < 0.0f)
++		if (separation < 0.0)
+ 		{
+ 			contacts[numContacts].normal = normal;
+ 			contacts[numContacts].separation = separation;
+@@ -414,14 +414,14 @@
+ // The normal points from A to B
+ int CollideV2(Contact* contacts, HalfSpace* hSpace, Body* body)
+ {
+-	glm::vec4 posA = hSpace->position;
+-	glm::vec4 posB = body->position;
++	glm::dvec4 posA = hSpace->position;
++	glm::dvec4 posB = body->position;
+ 
+-	glm::vec4 normal = hSpace->normal;
++	glm::dvec4 normal = hSpace->normal;
+ 
+-	glm::mat4 RotB = body->rotation;
++	glm::dmat4 RotB = body->rotation;
+ 
+-	float separation = 0.0f;
++	double separation = 0.0;
+ 	int numContacts = 0;
+ 	for (int i = 0; i < (int)body->bodyEdges.size(); ++i)
+ 	{
+@@ -432,7 +432,7 @@
+ 		incidentEdge[1].v = (RotB * body->bodyVertices[edge.second] + posB) - posA;
+ 
+ 		ClipVertex clipPoints[2];
+-		int np = IntersectSegmentWithHalfSpace(clipPoints, incidentEdge, normal, 0.0f, i+1);
++		int np = IntersectSegmentWithHalfSpace(clipPoints, incidentEdge, normal, 0.0, i+1);
+ 
+ 		if (np < 2)
+ 			continue;
+Index: glm/detail/func_matrix.inl
+===================================================================
+--- glm/detail/func_matrix.inl	(revision 3114)
++++ glm/detail/func_matrix.inl	(working copy)
+@@ -462,9 +462,9 @@
+ 
+ 			const auto m_cubed = m * m * m;
+ 			const auto denom1 = -t1 * ts_difference_of_squares;
+-			const auto m1 = static_cast<T>(10) * glm::abs(denom1) > std::numeric_limits<T>::epsilon() ? (1 / denom1) * (t2_squared * m + m_cubed) : mat<4, 4, T, Q>(static_cast<T>(0));
++			const auto m1 = glm::abs(denom1) > std::numeric_limits<T>::epsilon() ? (1 / denom1) * (t2_squared * m + m_cubed) : mat<4, 4, T, Q>(static_cast<T>(0));
+ 			const auto denom2 = t2 * ts_difference_of_squares;
+-			const auto m2 = static_cast<T>(10) * glm::abs(denom2) > std::numeric_limits<T>::epsilon() ? (1 / denom2) * (t1_squared * m + m_cubed) : mat<4, 4, T, Q>(static_cast<T>(0));
++			const auto m2 = glm::abs(denom2) > std::numeric_limits<T>::epsilon() ? (1 / denom2) * (t1_squared * m + m_cubed) : mat<4, 4, T, Q>(static_cast<T>(0));
+ 
+ 			return mat<4, 4, T, Q>(static_cast<T>(1)) + glm::sin(t1) * m1 + (1 - glm::cos(t1)) * m1 * m1 + glm::sin(t2) * m2 + (1 - glm::cos(t2)) * m2 * m2;
+ 		}
+Index: HalfSpace.h
+===================================================================
+--- HalfSpace.h	(revision 3114)
++++ HalfSpace.h	(working copy)
+@@ -8,14 +8,14 @@
+ {
+ 	HalfSpace();
+ 
+-	virtual void UpdateLinearVelocity(glm::vec4& addedVelocity) {};
+-	virtual void UpdateAngularVelocity(glm::mat4& addedAngularVelocity) {};
++	virtual void UpdateLinearVelocity(glm::dvec4& addedVelocity) {};
++	virtual void UpdateAngularVelocity(glm::dmat4& addedAngularVelocity) {};
+ 
+-	virtual glm::vec4 GetInstantaneousLinearVelocityAtPoint(glm::vec4& point) { return glm::vec4(0.0f); };
++	virtual glm::dvec4 GetInstantaneousLinearVelocityAtPoint(glm::dvec4& point) { return glm::dvec4(0.0); };
+ 
+ 	void Set(const glm::vec4& pos, const glm::vec4& dir);
+ 
+-	glm::vec4 normal;
++	glm::dvec4 normal;
+ };
+ 
+ #endif
+Index: main.cpp
+===================================================================
+--- main.cpp	(revision 3114)
++++ main.cpp	(working copy)
+@@ -84,8 +84,6 @@
+ 
+ void DrawBody(Body* body)
+ {
+-	glm::mat4 ModelMatrix = glm::translate(glm::mat4(1.0f), glm::vec3(body->position)) * body->rotation;
+-
+ 	glMatrixMode(GL_MODELVIEW);
+ 	glPushMatrix();
+ 
+Index: Memories.h
+===================================================================
+--- Memories.h	(revision 3114)
++++ Memories.h	(working copy)
+@@ -26,10 +26,13 @@
+ 	MACRO(int, Int)\
+ 	MACRO(std::int64_t, Int64)\
+ 	MACRO(float, Float)\
++	MACRO(double, Double)\
+ 	MACRO(glm::vec3, Vec3)\
+ 	MACRO(glm::vec4, Vec4)\
++	MACRO(glm::dvec4, DVec4)\
+ 	MACRO(glm::mat3, Mat3)\
+ 	MACRO(glm::mat4, Mat4)\
++	MACRO(glm::dmat4, DMat4)\
+ 	MACRO(ArbitersMap, Arbiters)\
+ 
+ ////////////////////////////////////////////////////////////////////////////////
+Index: Solid.cpp
+===================================================================
+--- Solid.cpp	(revision 3114)
++++ Solid.cpp	(working copy)
+@@ -3,31 +3,31 @@
+ 
+ ISolid::ISolid()
+ {
+-	position = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
+-	friction = 0.2f;
++	position = glm::dvec4(0.0, 0.0, 0.0, 0.0);
++	friction = 0.2;
+ 
+-	mass = FLT_MAX;
+-	invMass = 0.0f;
+-	I = FLT_MAX;
+-	invI = 0.0f;
++	mass = DBL_MAX;
++	invMass = 0.0;
++	I = DBL_MAX;
++	invI = 0.0;
+ }
+ 
+ void ISolid::Impress(MemoryChunk& chunk) const
+ {
+-	chunk.SetVec4("position", position);
+-	chunk.SetFloat("friction", friction);
+-	chunk.SetFloat("mass", mass);
+-	chunk.SetFloat("invMass", invMass);
+-	chunk.SetFloat("I", I);
+-	chunk.SetFloat("invI", invI);
++	chunk.SetDVec4("position", position);
++	chunk.SetDouble("friction", friction);
++	chunk.SetDouble("mass", mass);
++	chunk.SetDouble("invMass", invMass);
++	chunk.SetDouble("I", I);
++	chunk.SetDouble("invI", invI);
+ }
+ 
+ void ISolid::Evoke(const MemoryChunk& chunk)
+ {
+-	position = chunk.GetVec4("position");
+-	friction = chunk.GetFloat("friction");
+-	mass = chunk.GetFloat("mass");
+-	invMass = chunk.GetFloat("invMass");
+-	I = chunk.GetFloat("I");
+-	invI = chunk.GetFloat("invI");
++	position = chunk.GetDVec4("position");
++	friction = chunk.GetDouble("friction");
++	mass = chunk.GetDouble("mass");
++	invMass = chunk.GetDouble("invMass");
++	I = chunk.GetDouble("I");
++	invI = chunk.GetDouble("invI");
+ }
+Index: Solid.h
+===================================================================
+--- Solid.h	(revision 3114)
++++ Solid.h	(working copy)
+@@ -10,19 +10,19 @@
+ 	ISolid();
+ 	virtual ~ISolid() {}
+ 
+-	virtual void UpdateLinearVelocity(glm::vec4& addedVelocity) = 0;
+-	virtual void UpdateAngularVelocity(glm::mat4& addedAngularVelocity) = 0;
++	virtual void UpdateLinearVelocity(glm::dvec4& addedVelocity) = 0;
++	virtual void UpdateAngularVelocity(glm::dmat4& addedAngularVelocity) = 0;
+ 
+-	virtual glm::vec4 GetInstantaneousLinearVelocityAtPoint(glm::vec4& point) = 0;
++	virtual glm::dvec4 GetInstantaneousLinearVelocityAtPoint(glm::dvec4& point) = 0;
+ 
+ 	virtual void Impress(MemoryChunk& chunk) const override;
+ 	virtual void Evoke(const MemoryChunk& chunk) override;
+ 
+-	glm::vec4 position;
++	glm::dvec4 position;
+ 
+-	float friction;
+-	float mass, invMass;
+-	float I, invI;
++	double friction;
++	double mass, invMass;
++	double I, invI;
+ };
+ 
+ #endif
+Index: World.cpp
+===================================================================
+--- World.cpp	(revision 3114)
++++ World.cpp	(working copy)
+@@ -66,7 +66,7 @@
+ 		{
+ 			Body* bj = bodies[j];
+ 
+-			if (bi->invMass == 0.0f && bj->invMass == 0.0f)
++			if (bi->invMass == 0.0 && bj->invMass == 0.0)
+ 				continue;
+ 
+ 			Arbiter newArb(bi, bj);
+@@ -121,7 +121,7 @@
+ 	}
+ }
+ 
+-void World::Step(float dt)
++void World::Step(double dt)
+ {
+ 	if (isReplaying)
+ 	{
+@@ -133,7 +133,7 @@
+ 	}
+ }
+ 
+-void World::Simulate(float dt)
++void World::Simulate(double dt)
+ {
+ 	if (bodies.empty())
+ 	{
+@@ -142,7 +142,7 @@
+ 
+ 	GetMemories().Store();
+ 
+-	float inv_dt = dt > 0.0f ? 1.0f / dt : 0.0f;
++	double inv_dt = dt > 0.0 ? 1.0 / dt : 0.0;
+ 
+ 	// Determine overlapping bodies and update contact points.
+ 	BroadPhase();
+@@ -152,7 +152,7 @@
+ 	{
+ 		Body* b = bodies[i];
+ 
+-		if (b->invMass == 0.0f)
++		if (b->invMass == 0.0)
+ 			continue;
+ 
+ 		b->velocity += dt * (gravity + b->invMass * b->force);
+@@ -182,8 +182,8 @@
+ 		b->position += b->velocity * dt;
+ 		b->rotation = glm::exponentiate(b->angularVelocity * dt) * b->rotation;
+ 
+-		b->force = glm::vec4(0.0f);
+-		b->torque = glm::mat4(0.0f);
++		b->force = glm::dvec4(0.0);
++		b->torque = glm::dmat4(0.0);
+ 	}
+ }
+ 
+Index: World.h
+===================================================================
+--- World.h	(revision 3114)
++++ World.h	(working copy)
+@@ -28,9 +28,9 @@
+ 	void Add(HalfSpace* plane);
+ 	void Clear();
+ 
+-	void Step(float dt);
++	void Step(double dt);
+ 
+-	void Simulate(float dt);
++	void Simulate(double dt);
+ 	void Remember();
+ 
+ 	void BroadPhase();
+@@ -42,7 +42,7 @@
+ 	std::vector<HalfSpace*> planes;
+ 	std::map<ArbiterKey, Arbiter> arbiters;
+ 
+-	glm::vec4 gravity;
++	glm::dvec4 gravity;
+ 	int iterations;
+ 
+ 	static bool accumulateImpulses;

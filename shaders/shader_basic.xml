@@ -1,0 +1,28 @@
+<shader>
+	<vshader>
+		<![CDATA[
+			attribute highp vec3 vertex;
+
+			uniform highp mat4 Model_Matrix;
+			uniform highp mat4 View_Matrix;
+			uniform highp mat4 Proj_Matrix;
+
+			void main()
+			{
+				highp mat4 mvpMat = Proj_Matrix * View_Matrix * Model_Matrix;  
+				gl_Position = mvpMat * vec4(vertex,1.0);
+				gl_PointSize = 4.0;
+			}
+		]]>
+	</vshader>
+	<fshader>
+		<![CDATA[  
+			uniform lowp vec4 diffuseColor;
+
+			void main()
+			{
+				gl_FragColor = diffuseColor;
+			}
+		]]>
+	</fshader>
+</shader>

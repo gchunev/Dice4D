@@ -1,0 +1,34 @@
+<shader>
+	<vshader>
+		<![CDATA[
+			attribute highp vec3 vertex;
+			attribute lowp vec2 UV;
+			
+			uniform highp mat4 Proj_Matrix;
+			
+			varying lowp vec2 outUV;
+
+			void main()
+			{
+				mat4 mvpMat = Proj_Matrix;
+				
+				outUV = UV;
+				
+				gl_Position = mvpMat * vec4(vertex,1.0);
+			}
+		]]>
+	</vshader>
+	<fshader>
+		<![CDATA[
+			uniform sampler2D texture0;
+			
+			varying lowp vec2 outUV;
+
+			void main()
+			{
+				lowp vec4 texColor = texture2D(texture0, outUV);
+				gl_FragColor = texColor;
+			}
+		]]>
+	</fshader>
+</shader>

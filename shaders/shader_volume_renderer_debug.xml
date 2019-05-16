@@ -1,0 +1,160 @@
+<shader>
+	<vshader>
+		<![CDATA[
+			attribute highp vec3 vertex;
+			
+			uniform highp mat4 Proj_Matrix;
+			
+			varying highp vec3 vsPosition;
+
+			void main()
+			{
+				highp mat4 mvpMat = Proj_Matrix;
+				vsPosition = vertex;
+				gl_Position = mvpMat * vec4(vsPosition,1.0);
+			}
+		]]>
+	</vshader>
+	<fshader>
+		<![CDATA[  
+			uniform lowp vec4 diffuseColor;
+			
+			uniform highp float rayMarchingStart;
+			uniform highp float rayMarchingEnd;
+			uniform highp float rayMarchingStep;
+			
+			uniform highp vec4 cellPosition;
+			uniform highp vec4 cellNormal;
+			
+			uniform highp mat4 View_Matrix_Inv;
+			uniform highp mat4 ProjectorFrame_Matrix_Inv;
+			uniform highp mat4 CellTangent_Matrix_Inv;
+			
+			uniform mediump float outlineHalfWidth;
+			
+			uniform highp int cellIndex;
+			
+			varying highp vec3 vsPosition;
+			
+			highp float hit_4Dsphere(in highp vec4 center, highp float radius, in highp vec4 rayOrigin, in highp vec4 rayDir)
+			{
+				highp vec4 oc = rayOrigin - center;
+				highp float a = dot(rayDir, rayDir);
+				highp float b = 2.0 * dot(oc, rayDir);
+				highp float c = dot(oc,oc) - radius*radius;
+				highp float discriminant = b*b - 4.0*a*c;
+				return discriminant;
+			}
+			
+			highp float intersectPlane(in highp vec4 n, in highp vec4 p0, in highp vec4 rayOrigin, in highp vec4 rayDir)
+			{ 
+				// assuming vectors are all normalized
+				highp float denom = dot(n, rayDir); 
+				if (denom > 0.000001) { 
+					highp vec4 p0l0 = p0 - rayOrigin;
+					highp float t = dot(p0l0, n) / denom; 
+					return t;
+				} 
+			 
+				return -1.0; 
+			}
+			
+			highp float intersectPlaneDoubleSided(in highp vec4 n, in highp vec4 p0, in highp vec4 rayOrigin, in highp vec4 rayDir)
+			{ 
+				// assuming vectors are all normalized
+				highp float denom = dot(n, rayDir); 
+				if (abs(denom) > 0.000001) { 
+					highp vec4 p0l0 = p0 - rayOrigin;
+					highp float t = dot(p0l0, n) / denom; 
+					return t;
+				} 
+			 
+				return 1.0 / 0.0; // return infinity
+			} 
+			
+			highp float hit_3Dsphere(in highp vec4 n, in highp vec4 p0, highp float radius, in highp vec4 rayOrigin, in highp vec4 rayDir) 
+			{ 
+				highp float t = intersectPlane(n, p0, rayOrigin, rayDir); 
+				if (t >= 0.0) 
+				{ 
+					highp vec4 p = rayOrigin + rayDir * t; 
+					highp vec4 v = p - p0; 
+					highp float d2 = dot(v, v); 
+					if (sqrt(d2) <= radius)
+					{
+						return 1.0;
+					}
+				 } 
+			 
+				 return 0.0; 
+			}
+			
+			//#define TEST_WITH_HYPERSPHERE_AT_CUBE_CENTER
+			//#define TEST_WITH_SPHERES_IN_EACH_CELL
+			#define TEST_WITH_CHEBYSHEV_SPHERICAL_FUNCTIONS_IN_EACH_CELL
+			//#define TEST_WITH_VOLUMETRIC_OUTLINE_FOR_EACH_CELL
+			
+			#define M_PI 3.1415926535897932384626433832795
+			
+			void main()
+			{
+				lowp float alpha = 0.0;
+				highp float curDepth = rayMarchingStart;
+				for (curDepth = rayMarchingStart; curDepth >= rayMarchingEnd; curDepth += rayMarchingStep)
+				{
+					highp vec3 position = vsPosition * curDepth / vsPosition.z;
+					highp vec3 wsPosition3D = vec3(View_Matrix_Inv * vec4(position, 1.0));
+					highp vec4 wsPosition = ProjectorFrame_Matrix_Inv * vec4(wsPosition3D, cellPosition.w);
+					highp vec4 projViewDir = ProjectorFrame_Matrix_Inv[3];
+					
+					#ifdef TEST_WITH_HYPERSPHERE_AT_CUBE_CENTER
+						if (hit_4Dsphere(cellPosition, 1.0, wsPosition, projViewDir) > 0.0)
+						{
+						 alpha += 0.005;
+						}
+					#endif // TEST_WITH_HYPERSPHERE_AT_CUBE_CENTER
+
+					highp float t = intersectPlaneDoubleSided(cellNormal, cellPosition, wsPosition, projViewDir);
+					highp vec4 p = wsPosition + projViewDir * t;
+					
+					highp vec4 csPosition = CellTangent_Matrix_Inv * (p - cellPosition);
+
+					#ifdef TEST_WITH_SPHERES_IN_EACH_CELL
+						alpha += 0.005 * (step(sqrt(dot(csPosition, csPosition)), float(cellIndex)/7.0 + 0.25));
+					#endif // TEST_WITH_SPHERES_IN_EACH_CELL
+					
+					#ifdef TEST_WITH_CHEBYSHEV_SPHERICAL_FUNCTIONS_IN_EACH_CELL
+						highp float len = max(length(csPosition), 0.0001);
+						highp float theta = acos(csPosition.z / len);
+						mediump float i = float(cellIndex) + 1.0;
+						alpha += 0.01 * step(len, outlineHalfWidth * abs(cos(2.0*floor(i/2.0)*theta)) * ( mod(i,2.0) + (1.0 - mod(i,2.0))*step(0.0, abs(theta - 0.5*M_PI) - M_PI/(2.0*i)) ));
+					#endif // TEST_WITH_CHEBYSHEV_SPHERICAL_FUNCTIONS_IN_EACH_CELL
+					
+					#ifdef TEST_WITH_VOLUMETRIC_OUTLINE_FOR_EACH_CELL
+					if (csPosition.x > -outlineHalfWidth && csPosition.x < outlineHalfWidth && 
+						csPosition.y > -outlineHalfWidth && csPosition.y < outlineHalfWidth && 
+						csPosition.z > -outlineHalfWidth && csPosition.z < outlineHalfWidth)
+					{
+						alpha += 0.025 * pow(max(max(abs(csPosition.x) + abs(csPosition.y), abs(csPosition.x) + abs(csPosition.z)), abs(csPosition.y) + abs(csPosition.z)) / (2.0 * outlineHalfWidth), 10.0);
+					}
+					#endif // TEST_WITH_VOLUMETRIC_OUTLINE_FOR_EACH_CELL
+
+					#ifdef NULL
+					highp float cellMask = step(abs(csPosition.x), outlineHalfWidth) * step(abs(csPosition.y), outlineHalfWidth) * step(abs(csPosition.z), outlineHalfWidth);
+					highp vec4 tmp = csPosition;
+					csPosition.xyz += outlineHalfWidth;
+					csPosition.xyz /= 2.0 * outlineHalfWidth;
+					//alpha += 0.025 * mod(floor(3.0 * (csPosition.x + csPosition.y + csPosition.z)), 2.0);
+					highp vec3 subcellCoords = abs(3.0 * csPosition.xyz - floor(3.0 * csPosition.xyz) - 0.5);
+					highp float subcellMaxCoord = max(max(subcellCoords.x, subcellCoords.y), subcellCoords.z);
+					highp float subcellMask = step(2.0 * subcellMaxCoord - 0.90, 0.0);
+					alpha += (abs(tmp.x) < outlineHalfWidth / 3.0 && abs(tmp.y) < outlineHalfWidth / 3.0 && abs(tmp.z) < outlineHalfWidth / 3.0) ? 0.01 * (subcellMask) * cellMask : 0.01 * (1.0 - subcellMask) * cellMask;
+					#endif
+				}
+				
+				gl_FragColor = diffuseColor;
+				gl_FragColor.a = alpha;
+			}
+		]]>
+	</fshader>
+</shader>

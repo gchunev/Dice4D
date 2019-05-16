@@ -1,0 +1,89 @@
+<shader>
+	<vshader>
+		<![CDATA[
+			attribute highp vec3 vertex;
+			
+			uniform highp mat4 Proj_Matrix;
+			
+			varying highp vec3 vsPosition;
+
+			void main()
+			{
+				highp mat4 mvpMat = Proj_Matrix;
+				vsPosition = vertex;
+				gl_Position = mvpMat * vec4(vsPosition,1.0);
+			}
+		]]>
+	</vshader>
+	<fshader>
+		<![CDATA[  
+			uniform lowp vec4 diffuseColor;
+			
+			uniform highp float rayMarchingStart;
+			uniform highp float rayMarchingEnd;
+			uniform highp float rayMarchingStep;
+			
+			uniform highp vec4 cellPosition;
+			uniform highp vec4 cellNormal;
+			
+			uniform highp mat4 View_Matrix_Inv;
+			uniform highp mat4 ProjectorFrame_Matrix_Inv;
+			uniform highp mat4 CellTangent_Matrix_Inv;
+			
+			uniform mediump float outlineHalfWidth;
+			
+			uniform highp int cellIndex;
+			uniform lowp vec2 cellParams[8];
+			
+			varying highp vec3 vsPosition;
+			
+			highp float intersectPlaneDoubleSided(in highp vec4 n, in highp vec4 p0, in highp vec4 rayOrigin, in highp vec4 rayDir)
+			{ 
+				// assuming vectors are all normalized
+				highp float denom = dot(n, rayDir); 
+				if (abs(denom) > 0.000001) { 
+					highp vec4 p0l0 = p0 - rayOrigin;
+					highp float t = dot(p0l0, n) / denom; 
+					return t;
+				} 
+			 
+				return 1.0 / 0.000001;
+			}
+			
+			#define M_PI 3.1415926535897932384626433832795
+			
+			void main()
+			{
+				lowp float alpha = 0.0;
+				highp float curDepth = rayMarchingStart;
+				for (curDepth = rayMarchingStart; curDepth >= rayMarchingEnd; curDepth += rayMarchingStep)
+				{
+					// Move to World-space:
+					highp vec3 position = vsPosition * curDepth / vsPosition.z;
+					highp vec3 wsPosition3D = vec3(View_Matrix_Inv * vec4(position, 1.0));
+					highp vec4 wsPosition = ProjectorFrame_Matrix_Inv * vec4(wsPosition3D, cellPosition.w);
+					highp vec4 projViewDir = ProjectorFrame_Matrix_Inv[3];
+
+					// 4D Ray cast:
+					highp float t = intersectPlaneDoubleSided(cellNormal, cellPosition, wsPosition, projViewDir);
+					highp vec4 p = wsPosition + projViewDir * t;
+					
+					// Cell Texture-space:
+					highp vec4 csPosition = CellTangent_Matrix_Inv * (p - cellPosition);
+					
+					// Sample the Chebyshev spherical function texture in the current cell:
+					highp float len = max(length(csPosition), 0.0001);
+					highp float theta = acos(csPosition.z / len);
+					mediump float i = float(cellIndex) + 1.0;
+					lowp float scale = cellParams[cellIndex].x;
+					lowp float intensity = cellParams[0].y;
+					alpha += intensity * step(len, scale * outlineHalfWidth * abs(cos(2.0*floor(i/2.0)*theta)) * 
+									( mod(i,2.0) + (1.0 - mod(i,2.0))*step(0.0, abs(theta - 0.5*M_PI) - M_PI/(2.0*i)) ));
+				}
+				
+				gl_FragColor = diffuseColor;
+				gl_FragColor.a = pow(alpha, 0.9);
+			}
+		]]>
+	</fshader>
+</shader>
